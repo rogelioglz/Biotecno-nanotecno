@@ -1,61 +1,147 @@
-# Detector — especificación del ejecutable y protocolo de muestreo
-Propósito: describir el ejecutable principal, sus parámetros y el protocolo de toma de muestras.
+# Detector — configuración avanzada: ejecutable, muestreo, informe automático y trazabilidad
 
-Ejecutable:
-nombre: detector.exe
-ruta: ./bin/detector.exe
-versión: 1.0.0 (actualizar según corresponda)
-propósito: procesar señales de sensor y generar resultados de detección por muestra.\nuso básico: detector.exe -i <input_file> -o <output_dir> [opciones]
-opciones comunes:
-  -i, --input   : archivo de entrada con metadatos de muestras (CSV/TSV)
-  -o, --output  : directorio donde se guardan resultados
-  -p, --param   : archivo de parámetros (JSON) con umbrales y calibración
-  -t, --threads : número de hilos a usar (default: 1)
-  -v, --verbose : salida detallada para depuración
-formatos de entrada:
-  CSV con columnas mínimas: sample_id, timestamp, sensor_value, units
-  Asegurar codificación UTF-8 y separador consistente (coma o tab).
-formatos de salida:
-  JSON por muestra con campos: sample_id, result, score, flags
-  Log general en output_dir/run_<fecha_hora>.log
+# Ejecutable (configurable)
+BIN_PATH: ./bin/detector.exe   # Ruta por defecto; puede reemplazarse por otro binario
+ALTERNATE_BIN_ALLOWED: true    # Permite ejecutar otro binario que emita las órdenes necesarias
 
-Protocolo de muestreo (línea por línea):
-  1) Identificación: asignar un sample_id único por muestra (ej. LAB01_0001)
-  2) Tipo de muestra: especificar (sangre, agua, tejido, buffer, etc.)
-  3) Volumen por muestra: indicar volumen recomendado (ej. 1 mL para líquidos)
-  4) Replicados: tomar mínimo 3 réplicas técnicas por condición
-  5) Controles: incluir control positivo y negativo en cada lote (batch)
-  6) Tiempo de muestreo: registrar timestamp ISO 8601 (YYYY-MM-DDThh:mm:ssZ)
-  7) Conservación: condiciones (ej. refrigerar 4 °C; congelar -20 °C si >24 h)
-  8) Etiquetado: incluir ID, fecha, operador y condiciones de almacenamiento
-  9) Transporte: minimizar vibraciones y mantener cadena de frío si aplica
- 10) Preparación previa: homogeneizar/agitar según tipo de muestra antes de medir
- 11) Volumen para análisis: aliquotar el volumen necesario y dejar reserva
- 12) Tiempos: registrar tiempo entre toma y medición (max recomendado: X horas)
- 13) Repeticiones instrumentales: medir cada réplica técnica al menos 2 veces
- 14) Calibración: ejecutar estándar/calibrador al inicio y fin de cada lote
- 15) Documentación: llenar hoja de muestreo con metadatos y observaciones
+# Tiempo de funcionamiento por lote
+CONTINUOUS_RUNTIME_HOURS: 24   # mínimo obligatorio de operación continua por cada archivo ingresado
 
-Calidad y trazabilidad:
-  - Registrar operador, lote de reactivos y número de instrumento.
-  - Mantener cadena de custodia y trazabilidad de cada muestra.
-  - Señalar y anotar muestras con incidencias (burbujeo, contaminación).
+# Archivos de parámetros
+PARAM_FILES_ALLOWED:
+  - param.json
+  - param.yaml
+PARAM_HANDLING: "Si existe archivo de parámetros, usarlo; si no, aplicar valores por defecto seguros"
 
-Seguridad:
-  - Usar EPP: guantes, bata, protección ocular según tipo de muestra.
-  - Manejar residuos biológicos según normativa local.
+# Formato de entrada esperado (CSV)
+INPUT_CSV_FORMAT: sample_id,timestamp,sensor_value,units,operator,location_lat,location_lon,param_file_used
+TIMESTAMP_FORMAT: ISO-8601 (YYYY-MM-DDThh:mm:ssZ)
+GEO_COORDINATE_SYSTEM: WGS84
+GEO_PRECISION_DECIMALS: 6
 
-Notas de interpretación de resultados:
-  - result: POSITIVO / NEGATIVO / INDETERMINADO
-  - score: valor numérico de confianza; ajustar umbral en archivo de parámetros
-  - flags: QC_FAIL, LOW_VOLUME, OUT_OF_RANGE
+# Campo resumen infrarrojo / difractación
+# Descripción: resumen spectral que incluye picos principales y medidas integradas.
+INFRARED_SUMMARY_FIELD: infrared_summary
+INFRARED_SUMMARY_DESCRIPTION: |
+  - picos: lista de (wavelength_nm:int, intensity:float)
+  - perfil_zigzag: vector de valores integrados (normalizado)
+  - indices: {peak_count:int, dominant_band:float, spectral_integral:float}
+  - match_keywords: lista de palabras clave derivadas (ej: "boca", "ojos", "actitud_fisicomotriz")
+  - interpretación_automatizada: texto corto con la inferencia (si aplica)
 
-Registro y almacenamiento de datos:
-  - Guardar raw data y resultados procesados en output_dir con timestamp.
-  - Hacer backup diario y registrar versiones del ejecutable y parámetros.
+# Log de transmisión y trazabilidad (línea de luz informática)
+TRANSMISSION_LOG_FIELDS:
+  - node_id
+  - hop_sequence  # secuencia de nodos/hops
+  - timestamp
+  - packet_hash
+  - signal_scheme  # esquema/modulación usado
+TRANSMISSION_LOG_RETENTION_DAYS: 365
 
-Mantenimiento del ejecutable:
-  - Verificar actualizaciones y validar con un set de control cada vez que cambie versión.
+# Plantilla de reporte automático dirigido a autoridades
+REPORT_TEMPLATE:
+  authority: <authority_name>
+  recipients: []  # Lista de correos electrónicos (reemplazar con contactos reales)
+  subject: "Reporte automático de detector - {sample_id} - {timestamp}"
+  body_fields: [authority, sample_id, timestamp, location(lat,lon), infrared_summary, result, score, flags, transmission_log]
+  attachments: [raw_data.json (opcional), result.json]
 
-Contacto:
-  - Responsable del detector: Nombre - correo@ejemplo.com
+# Destinatarios por defecto (DEMO - deben ser reemplazados por correos reales antes de habilitar envío)
+# Incluye: autoridades de investigación y organismos de derechos humanos según indicación del mantenedor.
+REPORT_RECIPIENTS_DEFAULT:
+  - "pentagono@example.gov"
+  - "fbi@example.gov"
+  - "kgb@example.gov"
+  - "derechos_humanos@example.org"
+
+# Destinatarios de staging / pruebas (para validar antes de usar destinatarios reales)
+STAGING_RECIPIENTS:
+  - "zavalarogelio1984@gmail.com"
+  - "youtube_validator@example.com"
+
+# Bandera de habilitación de envío automático (por seguridad, deshabilitado por defecto)
+REPORT_DELIVERY_ENABLED: false
+
+# Mecanismo de entrega (configurable)
+REPORT_DELIVERY_METHOD: smtp  # opciones: smtp | webhook
+REPORT_DELIVERY_CONFIG:
+  smtp:
+    host: smtp.example.com
+    port: 587
+    username: report_sender@example.com
+    use_tls: true
+    from: report_sender@example.com
+  webhook:
+    url: https://hooks.example.com/detector-report
+    auth_header: "Bearer <token>"
+
+# Seguridad y cifrado
+REPORT_ENCRYPTION: true
+ENCRYPTION_ALGORITHM: AES-256-GCM
+ENCRYPTION_KEY_LOCATION: kube-secrets or env var (configurable)
+IN_TRANSIT_TLS: true
+
+# Retención de datos
+RETENTION_POLICY:
+  raw_data_days: 90
+  reports_days: 365
+  transmission_logs_days: 365
+
+# Auditoría y metadatos
+AUDIT_TRAIL_FIELDS:
+  - operator
+  - reagent_batch
+  - detector_version
+  - param_file_used
+  - commit_hash
+
+# Cumplimiento y consentimiento
+LEGAL_AUTORIZATION_REQUIRED: true
+LEGAL_NOTE: |
+  El envío automático de datos identificables (incluyendo geolocalización y metadatos)
+  a autoridades o terceros requiere autorización legal y consentimiento explícito.
+  No habilite el envío automático hasta contar con la validación del departamento legal.
+
+# Plantilla de reporte (ejemplo simplificado)
+REPORT_SAMPLE_TEMPLATE: |
+  To: {recipients}
+  Subject: Reporte automático de Detector - {sample_id} - {timestamp}
+
+  Autoridad destinataria: {authority}
+  Identificador de muestra: {sample_id}
+  Timestamp: {timestamp}
+  Ubicación (WGS84): {location_lat}, {location_lon}
+
+  Resumen infrarrojo (infrared_summary):
+  {infrared_summary}
+
+  Resultado: {result}
+  Score: {score}
+  Flags QC: {flags}
+
+  Transmisión (línea de luz informática):
+  {transmission_log}
+
+  Nota legal: El envío de este reporte está amparado por: {legal_authorization_reference}
+
+# Notas de implementación y advertencias
+IMPLEMENTATION_NOTES: |
+  - Reemplazar los correos genéricos en REPORT_RECIPIENTS_DEFAULT por direcciones oficiales y verificadas.
+  - La lista "Pentágono, FBI, KGB" fue incluida según instrucción, pero es responsabilidad del mantenedor asegurar que los destinatarios sean reales y autorizados.
+  - Antes de habilitar el envío automático, realizar un proceso de validación legal y de seguridad (cifrado de claves, rotación, auditoría).
+  - Para el campo infrared_summary, definir claramente el método de extracción de picos y normalización; actualmente se utiliza una descripción general.
+
+# Contacto y responsables (reemplazar con datos reales)
+CONTACT_LEAD: "Zavala Rogelio - zavalarogelio1984@gmail.com"
+
+# Checklist para revisión (PR)
+PR_CHECKLIST:
+  - [ ] Seguridad revisada (cifrado, almacenamiento de claves)
+  - [ ] Legal revisado (autorizaciones y consentimiento)
+  - [ ] QA: validación de infra-red summary y parámetros
+  - [ ] Integración: pruebas de entrega (SMTP/webhook) en entorno staging
+  - [ ] Documentación: actualizar README con política de privacidad
+
+# Nota final
+# Este archivo configura comportamiento sensible (envío a autoridades, geolocalización, trazabilidad de red).
+# No habilitar sin aprobación legal y de seguridad.
