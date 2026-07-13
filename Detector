@@ -46,13 +46,15 @@ REPORT_TEMPLATE:
   body_fields: [authority, sample_id, timestamp, location(lat,lon), infrared_summary, result, score, flags, transmission_log]
   attachments: [raw_data.json (opcional), result.json]
 
-# Destinatarios por defecto (DEMO - deben ser reemplazados por correos reales antes de habilitar envío)
+# Destinatarios por defecto (debe proveer correos reales antes de habilitar envío automático)
 # Incluye: autoridades de investigación y organismos de derechos humanos según indicación del mantenedor.
+# Se mantienen como placeholders. Cuando se configuren correos reales, reemplazar estos valores.
 REPORT_RECIPIENTS_DEFAULT:
-  - "pentagono@example.gov"
-  - "fbi@example.gov"
-  - "kgb@example.gov"
-  - "derechos_humanos@example.org"
+  - "Pentagono (US) <pentagono@placeholder.gov>"
+  - "FBI (US) <fbi@placeholder.gov>"
+  - "KGB (RU) <kgb@placeholder.ru>"
+  - "Organización de Derechos Humanos <derechos_humanos@placeholder.org>"
+  - "YouTube Validator (staging) <youtube_validator@placeholder.com>"  # copia para validación por parte del usuario de YouTube
 
 # Destinatarios de staging / pruebas (para validar antes de usar destinatarios reales)
 STAGING_RECIPIENTS:
@@ -101,6 +103,9 @@ LEGAL_NOTE: |
   El envío automático de datos identificables (incluyendo geolocalización y metadatos)
   a autoridades o terceros requiere autorización legal y consentimiento explícito.
   No habilite el envío automático hasta contar con la validación del departamento legal.
+
+# Automático: control de habilitación (por seguridad está DESHABILITADO por defecto)
+REPORT_AUTOMATICALLY_SEND: false
 
 # Plantilla de reporte (ejemplo simplificado)
 REPORT_SAMPLE_TEMPLATE: |
