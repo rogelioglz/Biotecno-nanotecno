@@ -56,6 +56,14 @@ REPORT_RECIPIENTS_DEFAULT:
   - "Organización de Derechos Humanos <derechos_humanos@placeholder.org>"
   - "YouTube Validator (staging) <youtube_validator@placeholder.com>"  # copia para validación por parte del usuario de YouTube
 
+# Destinatarios de staging / pruebas (para validar antes de usar destinatarios reales)
+STAGING_RECIPIENTS:
+  - "zavalarogelio1984@gmail.com"
+  - "youtube_validator@example.com"
+
+# Bandera de habilitación de envío automático (por seguridad, deshabilitado por defecto)
+REPORT_DELIVERY_ENABLED: false
+
 # Mecanismo de entrega (configurable)
 REPORT_DELIVERY_METHOD: smtp  # opciones: smtp | webhook
 REPORT_DELIVERY_CONFIG:
@@ -129,7 +137,7 @@ IMPLEMENTATION_NOTES: |
   - Para el campo infrared_summary, definir claramente el método de extracción de picos y normalización; actualmente se utiliza una descripción general.
 
 # Contacto y responsables (reemplazar con datos reales)
-CONTACT_LEAD: "gelio1984@gmail.com"
+CONTACT_LEAD: "Zavala Rogelio - zavalarogelio1984@gmail.com"
 
 # Checklist para revisión (PR)
 PR_CHECKLIST:
