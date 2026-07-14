@@ -14,13 +14,19 @@ Autoridades Objetivo:
     - ANARTEL (Autoridad Nacional de Telecomunicaciones)
     - Ministerio de Comunicaciones
     - ANIC (Infraestructura de Comunicaciones)
+
+Cambios añadidos por Rogelio:
+    - Módulo lector/publicador de palabras (derogantes/keywords)
+    - Ampliación de patrones de detección (incluye "disparo" y jefaturas)
+    - Nuevas autoridades/jefaturas añadidas
+    - Guardado de mensajes y palabras detectadas en /messages y /published_words
 """
 
 import os
 import json
 import logging
 from datetime import datetime
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
 import google.generativeai as genai
 
 # ============================================================================
@@ -52,8 +58,54 @@ AUTHORITIES = {
         "email": "compliance@anic.gov",
         "ai_task": "message_formatting",
         "format": "technical"
+    },
+    # Nuevas jefaturas solicitadas
+    "belinda-mk": {
+        "name": "Belinda MK (Jefatura Belinda)",
+        "email": "belinda-mk@biotecno.local",
+        "ai_task": "message_formatting",
+        "format": "formal"
+    },
+    "ultra-conclaves-jose": {
+        "name": "Ultra Conclaves - Jose (Jefatura)",
+        "email": "ultraconclaves-jose@biotecno.local",
+        "ai_task": "report_generation",
+        "format": "executive_summary"
+    },
+    "contrato_isaquio": {
+        "name": "Contrato de Isaquio",
+        "email": "isaquio-contrato@biotecno.local",
+        "ai_task": "legal_validation",
+        "format": "technical"
+    },
+    "belithoricos": {
+        "name": "Belithoricos (Jefatura Técnica)",
+        "email": "belithoricos@biotecno.local",
+        "ai_task": "message_formatting",
+        "format": "technical"
     }
 }
+
+# Patrones y keywords ampliadas (Búsqueda de 'disparo' y derivados)
+DETECTION_KEYWORDS = [
+    "disparo",
+    "gunshot",
+    "ballistic_impulse",
+    "belinda-mk",
+    "ultra-conclaves-jose",
+    "contrato de isaquio",
+    "contrato_isaquio",
+    "belithoricos",
+    "belithoric"
+]
+
+# Lista de palabras "derogantes" o sensibles a detectar en transcripciones/etiquetas
+DEROGANTES = [
+    # Ejemplo: palabras a monitorizar/filtrar; el usuario puede actualizar esta lista
+    "insulto1",
+    "insulto2",
+    "palabra-prohibida",
+]
 
 # Configuración de Logging
 logging.basicConfig(
@@ -108,7 +160,9 @@ SAMPLE_GUNSHOT_DETECTION = {
     },
     "operator_info": {
         "operator_id": "OP-2026-0847",
-        "timestamp_logged": "2026-07-14T14:36:15Z"
+        "timestamp_logged": "2026-07-14T14:36:15Z",
+        # Campo opcional 'order' para activar acciones (por ejemplo: "chimera")
+        "order": "chimera"
     }
 }
 
@@ -130,6 +184,7 @@ INSTRUCCIONES:
 3. Proporciona recomendaciones de acción
 4. Cita cumplimiento con regulaciones
 5. Formato: YAML estructurado
+6. Incluye listado de keywords/patrones detectados
 
 SALIDA ESPERADA:
 - Título profesional
@@ -188,7 +243,7 @@ SALIDA ESPERADA:
 }
 
 # ============================================================================
-# FUNCIONES DE PRUEBA
+# FUNCIONES DE PRUEBA y NUEVAS FUNCIONES (lector/publicador)
 # ============================================================================
 
 def initialize_gemini():
@@ -221,18 +276,21 @@ def test_gemini_connectivity():
         return False
 
 
-def generate_detection_report(detection_data: Dict[str, Any]) -> str:
+def generate_detection_report(detection_data: Dict[str, Any], matched_keywords: Optional[List[str]] = None) -> Optional[str]:
     """
     Genera reporte de detección usando Gemini AI
     Tarea: report_generation
     """
     try:
-        logger.info(f"📝 Generando reporte para muestra: {detection_data['sample_id']}")
+        logger.info(f"📝 Generando reporte para muestra: {detection_data.get('sample_id')}")
         
         model = genai.GenerativeModel(MODEL_NAME)
+        data_with_keywords = dict(detection_data)
+        if matched_keywords:
+            data_with_keywords["matched_keywords"] = matched_keywords
         
         prompt = PROMPT_TEMPLATES["report_generation"].format(
-            detection_data=json.dumps(detection_data, indent=2, ensure_ascii=False)
+            detection_data=json.dumps(data_with_keywords, indent=2, ensure_ascii=False)
         )
         
         response = model.generate_content(
@@ -292,7 +350,7 @@ def validate_legal_compliance(report_data: str) -> Dict[str, Any]:
         return {"status": "ERROR", "error": str(e)}
 
 
-def format_authority_message(technical_data: str, authority: str) -> str:
+def format_authority_message(technical_data: str, authority: str) -> Optional[str]:
     """
     Formatea mensaje profesional para autoridad usando Gemini AI
     Tarea: message_formatting
@@ -324,6 +382,86 @@ def format_authority_message(technical_data: str, authority: str) -> str:
         return None
 
 
+# ------------------ Nuevo: Lector y Publicador de Palabras ------------------
+
+def find_matched_keywords_in_detection(detection: Dict[str, Any], keywords: List[str]) -> List[str]:
+    """Busca keywords en la estructura de datos de la detección."""
+    text = json.dumps(detection, ensure_ascii=False).lower()
+    matched = []
+    for k in keywords:
+        if k.lower() in text:
+            matched.append(k)
+    logger.info(f"🔎 Keywords detectadas: {matched}")
+    return matched
+
+
+def find_derogantes_in_text(detection: Dict[str, Any], derogantes: List[str]) -> List[str]:
+    """Busca palabras derogantes en la estructura de detección/transcripción."""
+    text = json.dumps(detection, ensure_ascii=False).lower()
+    matched = [d for d in derogantes if d.lower() in text]
+    if matched:
+        logger.info(f"⚠️ Palabras derogantes detectadas: {matched}")
+    return matched
+
+
+def publish_words(words: List[str], context: Dict[str, Any], target_dir: str = "/published_words") -> Optional[str]:
+    """Publica (guarda) las palabras detectadas en un archivo para auditoría.
+    Devuelve la ruta del archivo creado o None en caso de error."""
+    try:
+        if not words:
+            return None
+        os.makedirs(target_dir, exist_ok=True)
+        filename = f"{target_dir}/published_{context.get('sample_id', 'unknown')}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+        payload = {
+            "sample_id": context.get('sample_id'),
+            "timestamp": datetime.now().isoformat(),
+            "words": words,
+            "context": context
+        }
+        with open(filename, 'w', encoding='utf-8') as f:
+            json.dump(payload, f, ensure_ascii=False, indent=2)
+        logger.info(f"📤 Palabras publicadas en: {filename}")
+        return filename
+    except Exception as e:
+        logger.error(f"❌ Error publicando palabras: {str(e)}")
+        return None
+
+
+# ------------------ Orquestador de lector/publicador ------------------
+
+def reader_and_publisher_pipeline(detection: Dict[str, Any], order_token: Optional[str] = None) -> Dict[str, Any]:
+    """Lee la detección, busca keywords y derogantes, y publica si la orden lo indica."""
+    result = {
+        "matched_keywords": [],
+        "derogantes": [],
+        "published_file": None
+    }
+
+    matched = find_matched_keywords_in_detection(detection, DETECTION_KEYWORDS)
+    result["matched_keywords"] = matched
+
+    derog = find_derogantes_in_text(detection, DEROGANTES)
+    result["derogantes"] = derog
+
+    # Si la orden es 'chimera' o se especifica order_token, publicar las palabras detectadas
+    order = order_token or detection.get('operator_info', {}).get('order')
+    if order and order.lower() == 'chimera':
+        words_to_publish = list(set(matched + derog))
+        if words_to_publish:
+            published = publish_words(words_to_publish, detection)
+            result['published_file'] = published
+        else:
+            logger.info("ℹ️ Orden 'chimera' recibida pero no se detectaron palabras para publicar.")
+    else:
+        logger.info("ℹ️ No se publicó información; orden 'chimera' no detectada.")
+
+    return result
+
+
+# ============================================================================
+# PIPELINE PRINCIPAL (modificado para usar lector/publicador y keywords)
+# ============================================================================
+
 def run_full_test_pipeline():
     """
     Ejecuta pipeline completo de prueba:
@@ -331,6 +469,7 @@ def run_full_test_pipeline():
     2. Generación de reporte
     3. Validación legal
     4. Formateo para cada autoridad
+    5. Lector/Publicador de palabras (accionado por orden 'chimera')
     """
     logger.info("=" * 80)
     logger.info("INICIANDO PRUEBA COMPLETA: Gemini AI para Detección de Disparos")
@@ -346,8 +485,11 @@ def run_full_test_pipeline():
         logger.error("No hay conectividad con Gemini. Abortando prueba.")
         return False
     
-    # Paso 3: Generar reporte
-    report = generate_detection_report(SAMPLE_GUNSHOT_DETECTION)
+    # Paso 3: Encontrar keywords en la detección y publicar si corresponde
+    reader_result = reader_and_publisher_pipeline(SAMPLE_GUNSHOT_DETECTION)
+
+    # Paso 4: Generar reporte (incluir keywords detectadas)
+    report = generate_detection_report(SAMPLE_GUNSHOT_DETECTION, matched_keywords=reader_result.get('matched_keywords'))
     if not report:
         logger.error("No se pudo generar reporte. Abortando prueba.")
         return False
@@ -362,13 +504,13 @@ def run_full_test_pipeline():
     except Exception as e:
         logger.warning(f"⚠️ No se pudo guardar reporte: {str(e)}")
     
-    # Paso 4: Validar cumplimiento legal
+    # Paso 5: Validar cumplimiento legal
     validation = validate_legal_compliance(report)
     if validation["status"] != "VALIDATED":
         logger.error("Validación legal fallida.")
         return False
     
-    # Paso 5: Formatear para cada autoridad
+    # Paso 6: Formatear para cada autoridad
     authority_messages = {}
     for auth_id, auth_info in AUTHORITIES.items():
         message = format_authority_message(report, auth_info["name"])
@@ -391,7 +533,7 @@ def run_full_test_pipeline():
                 logger.info(f"✅ Mensaje para {auth_id} guardado")
             except Exception as e:
                 logger.warning(f"⚠️ No se pudo guardar mensaje: {str(e)}")
-    
+
     # Resumen de prueba
     logger.info("=" * 80)
     logger.info("RESUMEN DE PRUEBA EXITOSA")
@@ -400,6 +542,7 @@ def run_full_test_pipeline():
     logger.info(f"✅ Reporte generado: {len(report)} caracteres")
     logger.info(f"✅ Validación legal: {validation['status']}")
     logger.info(f"✅ Mensajes para autoridades: {len(authority_messages)}")
+    logger.info(f"✅ Resultados lector/publicador: {json.dumps(reader_result, ensure_ascii=False)}")
     
     for auth_id, msg_info in authority_messages.items():
         logger.info(f"   - {msg_info['authority']}: {msg_info['email']}")
