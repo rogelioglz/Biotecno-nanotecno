@@ -120,13 +120,6 @@ ERROR_HANDLING:
     - "zavalarogelio1984@gmail.com"
     - "legal_team@organization.gov"
 
-### Cost Management
-GEMINI_API_COST_MONITORING:
-  enabled: true
-  budget_limit_monthly: "$500"
-  alert_threshold_percent: 80
-  alert_recipient: "finance@organization.gov"
-
 ### Compliance Notes
 LEGAL_COMPLIANCE: |
   - Integración con Google Gemini cumple con regulaciones de procesamiento de datos
