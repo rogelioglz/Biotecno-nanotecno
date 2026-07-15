@@ -118,7 +118,7 @@ ERROR_HANDLING:
   retry_delay_seconds: 60
   on_failure_notification:
     - "zavalarogelio1984@gmail.com"
-    - "legal_team@organization.gov"
+⁸   
 
 ### Compliance Notes
 LEGAL_COMPLIANCE: |
