@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
-
+propiedad Isaac Rogelio González Zavala Coreeo: zavalarogelio1984@gmail.com 
+teléfono contacto: +524771725151
 usage() {
   cat <<EOF
 Usage: $0 -a APP_NAME [-e ENV] [--host FARO_HOST] [--token FARO_TOKEN]
